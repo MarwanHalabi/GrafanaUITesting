@@ -18,7 +18,7 @@ class GrafanaUITest(unittest.TestCase):
     def tearDown(self):
         self.driver.quit()
 
-    def test_grafana_login_and_welcome(self):
+    def test_grafana_new_visualization_flow(self):
         driver = self.driver
 
         # Login
@@ -68,7 +68,7 @@ class GrafanaUITest(unittest.TestCase):
         driver.execute_script("arguments[0].scrollIntoView(true);", grafana_button)
         driver.execute_script("arguments[0].click();", grafana_button)
 
-        
+
         time.sleep(222)   
 
 if __name__ == '__main__':
