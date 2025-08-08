@@ -4,7 +4,7 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.chrome.options import Options
 
 import time
 
@@ -12,7 +12,12 @@ OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:3000')
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
-        self.driver = webdriver.Chrome()
+        options = Options()
+        options.add_argument("--headless=new")  # ✅ required for CI
+        options.add_argument("--no-sandbox")     # ✅ prevents sandbox errors
+        options.add_argument("--disable-dev-shm-usage")  # ✅ fixes /dev/shm issues
+
+        self.driver = webdriver.Chrome(options=options)
         self.driver.get(OLLAMA_URL)
 
     def tearDown(self):
