@@ -12,12 +12,16 @@ GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
-        options = Options()
-        options.add_argument("--headless=new")  # ✅ required for CI
-        options.add_argument("--no-sandbox")     # ✅ prevents sandbox errors
-        options.add_argument("--disable-dev-shm-usage")  # ✅ fixes /dev/shm issues
+        # TODO: add a check for headless mode
 
-        self.driver = webdriver.Chrome(options=options)
+        if os.environ.get('HEADLESS', '1') == '1':
+            options = Options()
+            options.add_argument("--headless=new")  # ✅ required for CI
+            options.add_argument("--no-sandbox")     # ✅ prevents sandbox errors
+            options.add_argument("--disable-dev-shm-usage")  # ✅ fixes /dev/shm issues
+            self.driver = webdriver.Chrome(options=options)
+        else:
+            self.driver = webdriver.Chrome()
         self.driver.get(GRAFANA_URL)
 
     def tearDown(self):
