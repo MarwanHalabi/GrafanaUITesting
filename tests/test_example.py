@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.options import Options
 
 import time
 
-OLLAMA_URL = os.environ.get('OLLAMA_URL', 'http://localhost:3000')
+GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
@@ -18,7 +18,7 @@ class GrafanaUITest(unittest.TestCase):
         options.add_argument("--disable-dev-shm-usage")  # ✅ fixes /dev/shm issues
 
         self.driver = webdriver.Chrome(options=options)
-        self.driver.get(OLLAMA_URL)
+        self.driver.get(GRAFANA_URL)
 
     def tearDown(self):
         self.driver.quit()
