@@ -8,6 +8,7 @@ from selenium.webdriver.chrome.options import Options
 import tempfile
 import shutil
 import time
+import uuid
 
 GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
 HEADLESS = os.environ.get('HEADLESS', '1') == '1'
