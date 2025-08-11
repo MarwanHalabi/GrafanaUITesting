@@ -12,11 +12,25 @@ import uuid
 
 GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
 HEADLESS = os.environ.get('HEADLESS', '1') == '1'
-IN_CI = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
-        self._user_data_dir = None
+        # one fully isolated root for Chrome + config
+        suffix = f"{os.getpid()}-{int(time.time()*1000)}-{uuid.uuid4()}"
+        self._chrome_root = tempfile.mkdtemp(prefix=f"chrome-{suffix}-")
+        self._user_data_dir = os.path.join(self._chrome_root, "profile")
+        os.makedirs(self._user_data_dir, exist_ok=True)
+
+        # ensure Chrome-friendly perms
+        os.chmod(self._chrome_root, 0o700)
+        os.chmod(self._user_data_dir, 0o700)
+
+        # prevent fallback to shared runner dirs
+        os.environ["XDG_RUNTIME_DIR"] = os.path.join(self._chrome_root, "xdg-runtime")
+        os.environ["XDG_CONFIG_HOME"] = os.path.join(self._chrome_root, "xdg-config")
+        os.makedirs(os.environ["XDG_RUNTIME_DIR"], exist_ok=True)
+        os.makedirs(os.environ["XDG_CONFIG_HOME"], exist_ok=True)
+
         options = Options()
         if HEADLESS:
             options.add_argument("--headless=new")
@@ -26,18 +40,9 @@ class GrafanaUITest(unittest.TestCase):
         options.add_argument("--no-first-run")
         options.add_argument("--no-default-browser-check")
         options.add_argument("--remote-debugging-port=0")
-
-        # Only use a profile locally; CI tends to lock it.
-        if not IN_CI:
-            self._user_data_dir = os.path.join(
-                tempfile.gettempdir(), f"chrome-{os.getpid()}-{int(time.time()*1000)}-{uuid.uuid4()}"
-            )
-            os.makedirs(self._user_data_dir, exist_ok=True)
-            options.add_argument(f"--user-data-dir={self._user_data_dir}")
-            options.add_argument(f"--profile-directory=Profile-{uuid.uuid4()}")
-
-        # Isolate runtime dir to avoid chrome lock noise
-        os.environ.setdefault("XDG_RUNTIME_DIR", tempfile.mkdtemp())
+        options.add_argument(f"--user-data-dir={self._user_data_dir}")
+        options.add_argument("--profile-directory=Default")
+        options.add_argument("--disable-features=Translate,OptimizationHints")
 
         self.driver = webdriver.Chrome(options=options)
         self.driver.set_page_load_timeout(60)
