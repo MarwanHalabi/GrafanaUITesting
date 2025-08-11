@@ -10,24 +10,21 @@ import shutil
 import time
 import uuid
 
-GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
-HEADLESS = os.environ.get('HEADLESS', '1') == '1'
+GRAFANA_URL = os.environ.get("GRAFANA_URL", "http://localhost:3000")
+HEADLESS = os.environ.get("HEADLESS", "1") == "true" or os.environ.get("HEADLESS", "1") == "1"
+
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
-        # one fully isolated root for Chrome + config
-        suffix = f"{os.getpid()}-{int(time.time()*1000)}-{uuid.uuid4()}"
-        self._chrome_root = tempfile.mkdtemp(prefix=f"chrome-{suffix}-")
-        self._user_data_dir = os.path.join(self._chrome_root, "profile")
-        os.makedirs(self._user_data_dir, exist_ok=True)
+        # Make a unique root to isolate Chrome completely from runner defaults
+        self._root = tempfile.mkdtemp(prefix="chromerun-")
+        os.chmod(self._root, 0o700)
 
-        # ensure Chrome-friendly perms
-        os.chmod(self._chrome_root, 0o700)
-        os.chmod(self._user_data_dir, 0o700)
-
-        # prevent fallback to shared runner dirs
-        os.environ["XDG_RUNTIME_DIR"] = os.path.join(self._chrome_root, "xdg-runtime")
-        os.environ["XDG_CONFIG_HOME"] = os.path.join(self._chrome_root, "xdg-config")
+        # Redirect HOME and XDG dirs to our temp root
+        os.environ["HOME"] = os.path.join(self._root, "home")
+        os.environ["XDG_RUNTIME_DIR"] = os.path.join(self._root, "rt")
+        os.environ["XDG_CONFIG_HOME"] = os.path.join(self._root, "cfg")
+        os.makedirs(os.environ["HOME"], exist_ok=True)
         os.makedirs(os.environ["XDG_RUNTIME_DIR"], exist_ok=True)
         os.makedirs(os.environ["XDG_CONFIG_HOME"], exist_ok=True)
 
@@ -37,12 +34,12 @@ class GrafanaUITest(unittest.TestCase):
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
             options.add_argument("--disable-gpu")
+
+        # Use guest mode so Chrome doesn't try to reuse any profile
+        options.add_argument("--guest")
         options.add_argument("--no-first-run")
         options.add_argument("--no-default-browser-check")
         options.add_argument("--remote-debugging-port=0")
-        options.add_argument(f"--user-data-dir={self._user_data_dir}")
-        options.add_argument("--profile-directory=Default")
-        options.add_argument("--disable-features=Translate,OptimizationHints")
 
         self.driver = webdriver.Chrome(options=options)
         self.driver.set_page_load_timeout(60)
