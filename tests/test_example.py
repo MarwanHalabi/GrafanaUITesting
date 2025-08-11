@@ -10,22 +10,35 @@ import shutil
 import time
 
 GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
-
+HEADLESS = os.environ.get('HEADLESS', '1') == '1'
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
-        self._user_data_dir = tempfile.mkdtemp()
+        # unique, isolated Chrome profile dir per run
+        suffix = f"{os.getpid()}-{int(time.time()*1000)}-{uuid.uuid4()}"
+        self._user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome-{suffix}")
+        os.makedirs(self._user_data_dir, exist_ok=True)
+
         options = Options()
-        if os.environ.get('HEADLESS', '1') == '1':
+        if HEADLESS:
             options.add_argument("--headless=new")
             options.add_argument("--no-sandbox")
             options.add_argument("--disable-dev-shm-usage")
-        options.add_argument(f'--user-data-dir={self._user_data_dir}')
+            options.add_argument("--disable-gpu")
+        options.add_argument("--no-first-run")
+        options.add_argument("--no-default-browser-check")
+        options.add_argument(f"--user-data-dir={self._user_data_dir}")
+        options.add_argument(f"--profile-directory=Profile-{uuid.uuid4()}")
+
         self.driver = webdriver.Chrome(options=options)
+        self.driver.set_page_load_timeout(60)
         self.driver.get(GRAFANA_URL)
 
     def tearDown(self):
-        self.driver.quit()
+        try:
+            self.driver.quit()
+        except Exception:
+            pass
         shutil.rmtree(self._user_data_dir, ignore_errors=True)
 
     def test_grafana_new_visualization_flow(self):
