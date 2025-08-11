@@ -12,14 +12,11 @@ import uuid
 
 GRAFANA_URL = os.environ.get('GRAFANA_URL', 'http://localhost:3000')
 HEADLESS = os.environ.get('HEADLESS', '1') == '1'
+IN_CI = os.environ.get('CI') == 'true' or os.environ.get('GITHUB_ACTIONS') == 'true'
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
-        # unique, isolated Chrome profile dir per run
-        suffix = f"{os.getpid()}-{int(time.time()*1000)}-{uuid.uuid4()}"
-        self._user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome-{suffix}")
-        os.makedirs(self._user_data_dir, exist_ok=True)
-
+        self._user_data_dir = None
         options = Options()
         if HEADLESS:
             options.add_argument("--headless=new")
@@ -28,8 +25,19 @@ class GrafanaUITest(unittest.TestCase):
             options.add_argument("--disable-gpu")
         options.add_argument("--no-first-run")
         options.add_argument("--no-default-browser-check")
-        options.add_argument(f"--user-data-dir={self._user_data_dir}")
-        options.add_argument(f"--profile-directory=Profile-{uuid.uuid4()}")
+        options.add_argument("--remote-debugging-port=0")
+
+        # Only use a profile locally; CI tends to lock it.
+        if not IN_CI:
+            self._user_data_dir = os.path.join(
+                tempfile.gettempdir(), f"chrome-{os.getpid()}-{int(time.time()*1000)}-{uuid.uuid4()}"
+            )
+            os.makedirs(self._user_data_dir, exist_ok=True)
+            options.add_argument(f"--user-data-dir={self._user_data_dir}")
+            options.add_argument(f"--profile-directory=Profile-{uuid.uuid4()}")
+
+        # Isolate runtime dir to avoid chrome lock noise
+        os.environ.setdefault("XDG_RUNTIME_DIR", tempfile.mkdtemp())
 
         self.driver = webdriver.Chrome(options=options)
         self.driver.set_page_load_timeout(60)
