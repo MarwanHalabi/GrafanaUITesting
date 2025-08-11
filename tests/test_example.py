@@ -5,6 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+import tempfile
 
 import time
 
@@ -19,6 +20,7 @@ class GrafanaUITest(unittest.TestCase):
             options.add_argument("--headless=new")  # ✅ required for CI
             options.add_argument("--no-sandbox")     # ✅ prevents sandbox errors
             options.add_argument("--disable-dev-shm-usage")  # ✅ fixes /dev/shm issues
+            options.add_argument(f'--user-data-dir={tempfile.mkdtemp()}')
             self.driver = webdriver.Chrome(options=options)
         else:
             self.driver = webdriver.Chrome()
@@ -77,8 +79,14 @@ class GrafanaUITest(unittest.TestCase):
         driver.execute_script("arguments[0].scrollIntoView(true);", grafana_button)
         driver.execute_script("arguments[0].click();", grafana_button)
 
+        # FINAL ASSERT: element must exist
+        target = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.XPATH, "//*[@id='_r2c_']"))
+        )
+        self.assertIsNotNone(target, "Element //*[@id='_r2c_'] should be present at the end")
 
-        time.sleep(222)   
+
+        # time.sleep(222)   
 
 if __name__ == '__main__':
     unittest.main()
