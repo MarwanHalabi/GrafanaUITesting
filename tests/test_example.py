@@ -132,6 +132,7 @@ class GrafanaUITest(unittest.TestCase):
         actual_name = " ".join(crumb.text.split())
         expected_name = " ".join(dashboard_name.split())
         self.assertEqual(actual_name, expected_name, f"Dashboard name mismatch: expected '{expected_name}', got '{actual_name}'")
+        time.sleep(10)
 
 if __name__ == "__main__":
     unittest.main()
