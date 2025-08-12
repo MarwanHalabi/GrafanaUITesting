@@ -1,3 +1,4 @@
+# tests/test_example.py
 import os
 import unittest
 from selenium import webdriver
@@ -5,43 +6,29 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
-import tempfile
-import shutil
 import time
 import uuid
 
-GRAFANA_URL = os.environ.get("GRAFANA_URL", "http://localhost:3000")
-HEADLESS = os.environ.get("HEADLESS", "1") == "true" or os.environ.get("HEADLESS", "1") == "1"
-
+# Config
+GRAFANA_URL = os.environ.get("GRAFANA_URL", "http://34.254.113.76:3000")
+HEADLESS = os.environ.get("HEADLESS", "0").lower() in ("1", "true")
+IN_CI = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
 
 class GrafanaUITest(unittest.TestCase):
     def setUp(self):
-        # Make a unique root to isolate Chrome completely from runner defaults
-        self._root = tempfile.mkdtemp(prefix="chromerun-")
-        os.chmod(self._root, 0o700)
-
-        # Redirect HOME and XDG dirs to our temp root
-        os.environ["HOME"] = os.path.join(self._root, "home")
-        os.environ["XDG_RUNTIME_DIR"] = os.path.join(self._root, "rt")
-        os.environ["XDG_CONFIG_HOME"] = os.path.join(self._root, "cfg")
-        os.makedirs(os.environ["HOME"], exist_ok=True)
-        os.makedirs(os.environ["XDG_RUNTIME_DIR"], exist_ok=True)
-        os.makedirs(os.environ["XDG_CONFIG_HOME"], exist_ok=True)
-
-        options = Options()
+        opts = Options()
         if HEADLESS:
-            options.add_argument("--headless=new")
-            options.add_argument("--no-sandbox")
-            options.add_argument("--disable-dev-shm-usage")
-            options.add_argument("--disable-gpu")
+            opts.add_argument("--headless=new")
+        if IN_CI:
+            # CI hardening flags (don’t add locally so a window opens cleanly)
+            opts.add_argument("--no-sandbox")
+            opts.add_argument("--disable-dev-shm-usage")
+            opts.add_argument("--disable-gpu")
+        # Harmless everywhere
+        opts.add_argument("--no-first-run")
+        opts.add_argument("--no-default-browser-check")
 
-        # Use guest mode so Chrome doesn't try to reuse any profile
-        options.add_argument("--guest")
-        options.add_argument("--no-first-run")
-        options.add_argument("--no-default-browser-check")
-        options.add_argument("--remote-debugging-port=0")
-
-        self.driver = webdriver.Chrome(options=options)
+        self.driver = webdriver.Chrome(options=opts)
         self.driver.set_page_load_timeout(60)
         self.driver.get(GRAFANA_URL)
 
@@ -50,7 +37,6 @@ class GrafanaUITest(unittest.TestCase):
             self.driver.quit()
         except Exception:
             pass
-        shutil.rmtree(self._user_data_dir, ignore_errors=True)
 
     def test_grafana_new_visualization_flow(self):
         driver = self.driver
@@ -101,15 +87,51 @@ class GrafanaUITest(unittest.TestCase):
         grafana_button = buttons[2]
         driver.execute_script("arguments[0].scrollIntoView(true);", grafana_button)
         driver.execute_script("arguments[0].click();", grafana_button)
-
-        # FINAL ASSERT: element must exist
-        target = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, "//*[@id='_r2c_']"))
+        
+        # Open "Save dashboard" dialog
+        save_btn = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//*[@id='reactRoot']/div/div[1]/header/div[2]/div/div/div/div[4]/button"))
         )
-        self.assertIsNotNone(target, "Element //*[@id='_r2c_'] should be present at the end")
+        driver.execute_script("arguments[0].click()", save_btn)  # JS click avoids overlay issues
+        
+        # Title input (based on your element)
+        dashboard_name = f"UI Test {uuid.uuid4().hex[:6]}"
+        title_input = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((
+                By.CSS_SELECTOR,
+                "div[role='dialog'] input[data-testid='Save dashboard title field'], "
+                "div[role='dialog'] input[aria-label='Save dashboard title field'], "
+                "div[role='dialog'] input[name='title']"
+            ))
+        )
+        title_input.click()
+        title_input.clear()
+        title_input.send_keys(dashboard_name)
 
+        # Confirm Save (dialog-scoped)
+        save_btn = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((
+                By.XPATH,
+                "//div[@role='dialog']//button[.//span[normalize-space()='Save'] or normalize-space()='Save' or @type='submit']"
+            ))
+        )
+        driver.execute_script("arguments[0].click();", save_btn)
 
-        # time.sleep(222)   
+        # Verify breadcrumb shows the saved dashboard name
+        crumb_xpath = "//*[@id='reactRoot']/div/div[1]/header/div[1]/div[1]/nav/ol/li[3]/a"
 
-if __name__ == '__main__':
+        # wait until the breadcrumb contains the expected name
+        WebDriverWait(driver, 15).until(
+            EC.text_to_be_present_in_element((By.XPATH, crumb_xpath), dashboard_name)
+        )
+
+        # assert exact equality (normalize whitespace just in case)
+        crumb = WebDriverWait(driver, 5).until(
+            EC.visibility_of_element_located((By.XPATH, crumb_xpath))
+        )
+        actual_name = " ".join(crumb.text.split())
+        expected_name = " ".join(dashboard_name.split())
+        self.assertEqual(actual_name, expected_name, f"Dashboard name mismatch: expected '{expected_name}', got '{actual_name}'")
+
+if __name__ == "__main__":
     unittest.main()
