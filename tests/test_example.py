@@ -10,7 +10,7 @@ import time
 import uuid
 
 # Config
-GRAFANA_URL = os.environ.get("GRAFANA_URL", "http://34.254.113.76:3000")
+GRAFANA_URL = os.environ.get("GRAFANA_URL", "http://54.154.221.226:3000")
 HEADLESS = os.environ.get("HEADLESS", "0").lower() in ("1", "true")
 IN_CI = os.environ.get("CI") == "true" or os.environ.get("GITHUB_ACTIONS") == "true"
 
