@@ -97,7 +97,7 @@ class GrafanaUITest(unittest.TestCase):
 
         # Save dashboard
         save_btn = WebDriverWait(d, 10).until(EC.element_to_be_clickable((
-            By.XPATH, "//*[@id='reactRoot']/div/div[1]/header/div[2]/div/div/div/div[4]/button"
+            By.XPATH, "//button[@data-testid='data-testid Save dashboard button']"
         )))
         d.execute_script("arguments[0].click()", save_btn)
 
@@ -111,12 +111,12 @@ class GrafanaUITest(unittest.TestCase):
         title_input.click(); title_input.clear(); title_input.send_keys(dashboard_name)
 
         save_btn = WebDriverWait(d, 10).until(EC.element_to_be_clickable((
-            By.XPATH, "//div[@role='dialog']//button[.//span[normalize-space()='Save'] or normalize-space()='Save' or @type='submit']"
+            By.XPATH, "//button[@data-testid='data-testid Save dashboard drawer button']"
         )))
         d.execute_script("arguments[0].click();", save_btn)
 
         # UI assert: breadcrumb shows saved name
-        crumb_xpath = "//*[@id='reactRoot']/div/div[1]/header/div[1]/div[1]/nav/ol/li[3]/a"
+        crumb_xpath = f"//a[@data-testid and @title=normalize-space('{dashboard_name}')]"
         WebDriverWait(d, 15).until(EC.text_to_be_present_in_element((By.XPATH, crumb_xpath), dashboard_name))
         crumb = WebDriverWait(d, 5).until(EC.visibility_of_element_located((By.XPATH, crumb_xpath)))
         self.assertEqual(" ".join(crumb.text.split()), " ".join(dashboard_name.split()))
