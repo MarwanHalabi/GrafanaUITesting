@@ -122,7 +122,7 @@ class GrafanaUITest(unittest.TestCase):
         self.assertEqual(" ".join(crumb.text.split()), " ".join(dashboard_name.split()))
 
         # Backend assert: persisted via REST API
-        time.sleep(2)  # small buffer for DB write
+        # time.sleep(2)  # small buffer for DB write
         uid = self._extract_uid_from_url(d.current_url)
         data = self._get_dashboard_via_api(uid)
         api_title = data.get("dashboard", {}).get("title")
