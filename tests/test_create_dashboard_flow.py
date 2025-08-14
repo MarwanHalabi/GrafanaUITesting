@@ -115,6 +115,12 @@ class GrafanaUITest(unittest.TestCase):
         )))
         d.execute_script("arguments[0].click();", save_btn)
 
+        # UI assert: breadcrumb shows saved name
+        # matches any breadcrumb <a> whose data-testid contains 'breadcrumb' and exact text
+        crumb_xpath = f"//a[contains(@data-testid,'breadcrumb') and normalize-space(.)=normalize-space('{dashboard_name}')]"
+        crumb = WebDriverWait(d, 15).until(EC.visibility_of_element_located((By.XPATH, crumb_xpath)))
+        self.assertEqual(crumb.text.strip(), dashboard_name.strip())
+
         # Backend assert: persisted via REST API
         # time.sleep(2)  # small buffer for DB write
         uid = self._extract_uid_from_url(d.current_url)
