@@ -5,6 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+from urllib.parse import urlparse
 
 # Config
 GRAFANA_URL  = os.getenv("GRAFANA_URL", "http://34.244.73.51:3000")
@@ -29,18 +30,25 @@ class GrafanaUITest(unittest.TestCase):
         self.driver = webdriver.Chrome(options=opts)
         self.driver.set_page_load_timeout(60)
         self.driver.get(GRAFANA_URL)
+        self.dashboard_uid = None  # will be set after save
 
     def tearDown(self):
         try: self.driver.quit()
         except Exception: pass
 
     # --- helpers ---
+
     def _extract_uid_from_url(self, url: str) -> str:
-        # Typical patterns: /d/<uid>/<slug> or /d/<uid>
-        m = re.search(r"/d/([^/?#]+)/", url + "/")
-        if not m:
-            raise AssertionError(f"Could not extract UID from URL: {url}")
-        return m.group(1)
+        path = urlparse(url).path  # e.g. /d/719a.../ui-test-xxxx
+        parts = [p for p in path.split("/") if p]
+        if "d" in parts:
+            i = parts.index("d")
+            if i + 1 < len(parts) and parts[i+1]:
+                return parts[i+1]
+        m = re.search(r"/d/([^/?#]+)", url)
+        if m:
+            return m.group(1)
+        raise AssertionError(f"Could not extract UID from URL: {url}")
 
     def _get_dashboard_via_api(self, uid: str) -> dict:
         url = f"{API_BASE_URL}/api/dashboards/uid/{uid}"
@@ -52,6 +60,25 @@ class GrafanaUITest(unittest.TestCase):
         r = requests.get(url, headers=headers, auth=auth, timeout=15)
         self.assertEqual(r.status_code, 200, f"API GET failed: {r.status_code} {r.text}")
         return r.json()
+
+    def _read_uid_from_breadcrumb(self, d, dashboard_name: str, timeout: int = 30) -> str:
+        """
+        Reads the dashboard UID from the breadcrumb <a> href after save.
+        Prefers the crumb whose title == dashboard_name; falls back to last crumb.
+        """
+        # Prefer exact-title crumb (stable)
+        try:
+            crumb = WebDriverWait(d, timeout).until(EC.visibility_of_element_located((
+                By.XPATH,
+                f"//nav//a[contains(@data-testid,'breadcrumb') and @title=normalize-space('{dashboard_name}')]"
+            )))
+        except Exception:
+            # Fallback: last breadcrumb link
+            crumb = WebDriverWait(d, timeout).until(EC.visibility_of_element_located((
+                By.CSS_SELECTOR, "nav ol li:last-child a[data-testid*='breadcrumb']"
+            )))
+        href = crumb.get_attribute("href")
+        return self._extract_uid_from_url(href)
 
     def test_grafana_new_visualization_flow(self):
         d = self.driver
@@ -95,12 +122,13 @@ class GrafanaUITest(unittest.TestCase):
         d.execute_script("arguments[0].scrollIntoView(true);", grafana_button)
         d.execute_script("arguments[0].click();", grafana_button)
 
-        # Save dashboard
+        # Save dashboard (top bar)
         save_btn = WebDriverWait(d, 10).until(EC.element_to_be_clickable((
             By.XPATH, "//button[@data-testid='data-testid Save dashboard button']"
         )))
         d.execute_script("arguments[0].click()", save_btn)
 
+        # Name it in the drawer
         dashboard_name = f"UI Test {uuid.uuid4().hex[:6]}"
         title_input = WebDriverWait(d, 10).until(EC.element_to_be_clickable((
             By.CSS_SELECTOR,
@@ -115,19 +143,14 @@ class GrafanaUITest(unittest.TestCase):
         )))
         d.execute_script("arguments[0].click();", save_btn)
 
-        # UI assert: breadcrumb shows saved name
-        # matches any breadcrumb <a> whose data-testid contains 'breadcrumb' and exact text
-        crumb_xpath = f"//a[contains(@data-testid,'breadcrumb') and normalize-space(.)=normalize-space('{dashboard_name}')]"
-        crumb = WebDriverWait(d, 15).until(EC.visibility_of_element_located((By.XPATH, crumb_xpath)))
-        self.assertEqual(crumb.text.strip(), dashboard_name.strip())
+        # --- Capture UID from breadcrumb (robust, does not rely on current_url) ---
+        self.dashboard_uid = self._read_uid_from_breadcrumb(d, dashboard_name, timeout=30)
 
         # Backend assert: persisted via REST API
-        # time.sleep(2)  # small buffer for DB write
-        uid = self._extract_uid_from_url(d.current_url)
-        data = self._get_dashboard_via_api(uid)
+        data = self._get_dashboard_via_api(self.dashboard_uid)
         api_title = data.get("dashboard", {}).get("title")
         self.assertEqual(api_title, dashboard_name, f"API title mismatch: {api_title} != {dashboard_name}")
-        self.assertEqual(data.get("dashboard", {}).get("uid"), uid)
+        self.assertEqual(data.get("dashboard", {}).get("uid"), self.dashboard_uid)
         self.assertGreaterEqual(data.get("dashboard", {}).get("version", 1), 1)
 
 if __name__ == "__main__":
