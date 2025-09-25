@@ -5,6 +5,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.options import Options
+from selenium.common.exceptions import StaleElementReferenceException
 from urllib.parse import urlparse
 
 # Config
@@ -130,13 +131,30 @@ class GrafanaUITest(unittest.TestCase):
 
         # Name it in the drawer
         dashboard_name = f"UI Test {uuid.uuid4().hex[:6]}"
-        title_input = WebDriverWait(d, 10).until(EC.element_to_be_clickable((
-            By.CSS_SELECTOR,
+        title_field_locator = (By.CSS_SELECTOR,
             "div[role='dialog'] input[data-testid='Save dashboard title field'], "
             "div[role='dialog'] input[aria-label='Save dashboard title field'], "
             "div[role='dialog'] input[name='title']"
-        )))
-        title_input.click(); title_input.clear(); title_input.send_keys(dashboard_name)
+        )
+        def _fill_dashboard_title():
+            field = WebDriverWait(d, 10).until(
+                EC.visibility_of_element_located(title_field_locator)
+            )
+            d.execute_script("arguments[0].scrollIntoView({block: 'center'});", field)
+            d.execute_script("arguments[0].focus();", field)
+            d.execute_script("arguments[0].value = '';", field)
+            field.send_keys(dashboard_name)
+            WebDriverWait(d, 5).until(
+                lambda driver: driver.find_element(*title_field_locator).get_attribute("value") == dashboard_name
+            )
+        for attempt in range(3):
+            try:
+                _fill_dashboard_title()
+                break
+            except StaleElementReferenceException:
+                if attempt == 2:
+                    raise
+                time.sleep(0.2)
 
         save_btn = WebDriverWait(d, 10).until(EC.element_to_be_clickable((
             By.XPATH, "//button[@data-testid='data-testid Save dashboard drawer button']"
