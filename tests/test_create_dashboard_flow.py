@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.options import Options
 from urllib.parse import urlparse
 
 # Config
-GRAFANA_URL  = os.getenv("GRAFANA_URL", "http://54.195.151.217:3000")
+GRAFANA_URL  = os.getenv("GRAFANA_URL", "http://46.51.197.134:3000")
 API_BASE_URL = os.getenv("API_BASE_URL", GRAFANA_URL)  # reuse unless you proxy API
 GRAFANA_USER = os.getenv("GRAFANA_USER", "admin")
 GRAFANA_PASS = os.getenv("GRAFANA_PASS", "admin")
